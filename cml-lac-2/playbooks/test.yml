@@ -1,0 +1,12 @@
+---
+- name: Test TCP connectivity (telnet style)
+  hosts: all
+  gather_facts: false
+  connection: local
+  
+  tasks:
+    - name: Check telnet
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: "{{ ansible_port }}"
+        timeout: 5
