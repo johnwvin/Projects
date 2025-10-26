@@ -1,32 +1,11 @@
-# Copyright (c) 2025  Cisco Systems, Inc.
-# All rights reserved.
-
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
-# 1. Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
-# 2. Redistributions in binary form must reproduce the above copyright
-#    notice, this list of conditions and the following disclaimer in the
-#    documentation and/or other materials provided with the distribution.
-
-# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-# ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
-# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
-# OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-# OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-# SUCH DAMAGE.
-
+import os
+import requests
 import asyncio
 import logging
-import os
 import tempfile
 from typing import Any
+from fastmcp import FastMCP
+from fastmcp.server.auth.providers.github import GitHubProvider
 
 import httpx
 from fastmcp import Context, FastMCP
@@ -35,22 +14,23 @@ from mcp.shared.exceptions import McpError
 from mcp.types import METHOD_NOT_FOUND
 from virl2_client.models.cl_pyats import ClPyats, PyatsNotInstalled
 
-from cml_mcp.cml_client import CMLClient
-from cml_mcp.schemas.annotations import EllipseAnnotation, LineAnnotation, RectangleAnnotation, TextAnnotation
-from cml_mcp.schemas.common import DefinitionID, UserName, UUID4Type
-from cml_mcp.schemas.groups import GroupCreate, GroupInfoResponse
-from cml_mcp.schemas.interfaces import InterfaceCreate
-from cml_mcp.schemas.labs import Lab, LabCreate, LabTitle
+from .cml_client import CMLClient
+from .schemas.annotations import EllipseAnnotation, LineAnnotation, RectangleAnnotation, TextAnnotation
+from .schemas.common import DefinitionID, UserName, UUID4Type
+from .schemas.groups import GroupCreate, GroupInfoResponse
+from .schemas.interfaces import InterfaceCreate
+from .schemas.labs import Lab, LabCreate, LabTitle
 
 # from cml_mcp.schemas.licensing import LicensingStatus
-from cml_mcp.schemas.links import Link, LinkConditionConfiguration, LinkCreate
-from cml_mcp.schemas.node_definitions import NodeDefinition
-from cml_mcp.schemas.nodes import Node, NodeConfigurationContent, NodeCreate, NodeLabel
-from cml_mcp.schemas.system import SystemHealth, SystemInformation, SystemStats
-from cml_mcp.schemas.topologies import Topology
-from cml_mcp.schemas.users import UserCreate, UserResponse
+from .schemas.links import Link, LinkConditionConfiguration, LinkCreate
+from .schemas.node_definitions import NodeDefinition
+from .schemas.nodes import Node, NodeConfigurationContent, NodeCreate, NodeLabel
+from .schemas.system import SystemHealth, SystemInformation, SystemStats
+from .schemas.topologies import Topology
+from .schemas.users import UserCreate, UserResponse
+from .types import SimplifiedInterfaceResponse, SuperSimplifiedNodeDefinitionResponse
 from cml_mcp.settings import settings
-from cml_mcp.types import SimplifiedInterfaceResponse, SuperSimplifiedNodeDefinitionResponse
+
 
 # Set up logging
 loglevel = logging.DEBUG if os.getenv("DEBUG", "false").lower() == "true" else logging.INFO
@@ -58,9 +38,17 @@ logging.basicConfig(level=loglevel, format="%(asctime)s %(levelname)s %(threadNa
 logger = logging.getLogger("cml-mcp")
 
 
-server_mcp = FastMCP("Cisco Modeling Labs (CML)")
 cml_client = CMLClient(host=str(settings.cml_url), username=settings.cml_username, password=settings.cml_password)
 
+# -------------------- GitHub Provider --------------------
+auth = GitHubProvider(
+    client_id=os.getenv("GITHUB_CLIENT_ID"),
+    client_secret=os.getenv("GITHUB_CLIENT_SECRET"),
+    base_url=os.getenv("ROOT_URL")
+)
+
+# -------------------- FastMCP Init --------------------
+server_mcp = FastMCP(name="cml-mcp", auth=auth)
 
 async def get_all_labs() -> list[UUID4Type]:
     """
@@ -1234,3 +1222,6 @@ async def send_cli_command(lid: UUID4Type, label: NodeLabel, commands: str, conf
         raise ToolError(e)
     finally:
         os.chdir(cwd)  # Restore the original working directory
+
+
+

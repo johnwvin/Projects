@@ -24,7 +24,7 @@
 
 import logging
 from typing import Any
-
+import os
 import httpx
 import virl2_client
 
@@ -120,8 +120,15 @@ class CMLClient(object):
     async def get(self, endpoint: str, params: dict | None = None) -> Any:
         """
         Make a GET request to the CML API.
+        Ensures that calls to /nodes include ?operational=true for CML 2.8 compatibility.
         """
         await self.check_authentication()
+
+        # In CML 2.8, you only get the "operational" block if you ask for it
+        if endpoint.startswith("/nodes") or "/nodes" in endpoint:
+            params = params or {}
+            params.setdefault("operational", "true")
+
         url = f"{self.api_base}{endpoint}"
         try:
             resp = await self.client.get(url, params=params)
@@ -130,6 +137,7 @@ class CMLClient(object):
         except httpx.RequestError as e:
             logger.error(f"Error making GET request to {url}: {e}", exc_info=True)
             raise e
+
 
     async def post(self, endpoint: str, data: dict | None = None, params: dict | None = None) -> Any | None:
         """
