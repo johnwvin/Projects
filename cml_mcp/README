@@ -1,0 +1,17 @@
+ENV VARS:
+
+export VIRL_HOST=
+export VIRL_USERNAME=
+export VIRL_PASSWORD=
+export CML_VERIFY_CERT= <true or false>
+export GITHUB_CLIENT_ID=
+export GITHUB_CLIENT_SECRET=
+export ROOT_URL= <mcp server url>
+export PYATS_USERNAME=
+export PYATS_PASSWORD=
+export PYATS_AUTH_PASS=
+
+
+Notice OAuth config in server.py, you can comment that out and remove the auth property from the fastmcp init (server_mcp = FastMCP(name="cml-mcp", auth=auth))  to disable it.
+I also am using verify TLS, you can change sslcontext to False to disable that in the client file.
+run with: python3 -m cml_mcp in first dir
