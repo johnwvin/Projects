@@ -24,7 +24,6 @@
 
 from cml_mcp.server import server_mcp
 
-
 def main():
     server_mcp.run(transport="http", host="127.0.0.1", port=8000)
 

@@ -27,8 +27,10 @@ from typing import Any
 import os
 import httpx
 import virl2_client
+import ssl
 
 API_TIMEOUT = 10  # seconds
+ssl_context = ssl.create_default_context()
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s %(threadName)s %(name)s: %(message)s")
@@ -44,57 +46,56 @@ class CMLClient(object):
     def __init__(self, host: str, username: str, password: str):
         self.base_url = host.rstrip("/")
         self.api_base = f"{self.base_url}/api/v0"
-        self.client = httpx.AsyncClient(verify=False, timeout=API_TIMEOUT)
-        self.vclient = virl2_client.ClientLibrary(host, username, password, ssl_verify=False)
+        self.client = httpx.AsyncClient(verify=ssl_context, timeout=API_TIMEOUT)
+        self.vclient = virl2_client.ClientLibrary(host, username, password, ssl_verify=ssl_context)
         self.token = None
         self.admin = None
         self.username = username
         self.password = password
 
     async def login(self) -> None:
-        """
-        Authenticate with the CML API and store the token for future requests.
-        """
-        url = f"{self.base_url}/api/v0/authenticate"
-        try:
+            url = f"{self.base_url}/api/v0/authenticate"
             resp = await self.client.post(
                 url,
                 json={"username": self.username, "password": self.password},
             )
             resp.raise_for_status()
-            self.token = resp.json()
+            token = resp.json()
+            if isinstance(token, dict):
+                token = token.get("token") or next(iter(token.values()))
+            self.token = token.strip('"')
             self.client.headers.update({"Authorization": f"Bearer {self.token}"})
             logger.info("Authenticated with CML API")
-        except Exception as e:
-            logger.exception(f"Failed to authenticate with CML API: {e}", exc_info=True)
-            raise e
+
 
     async def check_authentication(self) -> None:
-        """
-        Check if the current session is authenticated.
-        If not, re-authenticate.
-        """
-        if self.token:
-            url = f"{self.base_url}/api/v0/authok"
-            try:
-                resp = await self.client.get(url)
-                resp.raise_for_status()
-                return  # Already authenticated
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 401:  # Unauthorized, re-authenticate
-                    logger.debug("Authentication failed, re-authenticating")
-                    self.token = None
-                else:
-                    logger.error(f"Error checking authentication: {e}", exc_info=True)
-                    raise e
-            except httpx.RequestError as e:
-                logger.error(f"Error checking authentication: {e}", exc_info=True)
-                raise e
-
-        # If token is None or authentication failed, re-authenticate
+        # If we don't have a token yet, do a clean login
         if not self.token:
-            logger.debug("[Re-]authenticating with CML API")
+            self.client.headers.pop("Authorization", None)
             await self.login()
+            return
+
+        url = f"{self.base_url}/api/v0/authok"
+        try:
+            resp = await self.client.get(url, headers={"Authorization": f"Bearer {self.token}"})
+            resp.raise_for_status()
+            return  # Token still valid
+        except httpx.HTTPStatusError as e:
+            # Treat 400 and 401 both as "bad token"
+            if e.response.status_code in (400, 401):
+                logger.debug("Token invalid or expired, forcing reauthentication...")
+                self.token = None
+                self.client.headers.pop("Authorization", None)
+                await self.login()
+            else:
+                logger.error(f"Auth check failed with {e.response.status_code}: {e}", exc_info=True)
+                raise
+        except httpx.RequestError as e:
+            logger.error(f"Auth check TLS/request error: {e}", exc_info=True)
+            raise
+
+
+
 
     async def is_admin(self) -> bool:
         """

@@ -4,7 +4,7 @@
 # All rights reserved.
 #
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Optional
 
 from fastapi import Body
 from pydantic import BaseModel, Field
@@ -139,7 +139,7 @@ class Lab(BaseDBModel):
         deprecated=True,
         description="Array of LabGroup objects - mapping from group id to permissions.",
     )
-    effective_permissions: EffectivePermissions = Field(...)
+    effective_permissions: Optional[EffectivePermissions] = Field(default=None)
 
 
 LabGroupsBody = Annotated[
@@ -215,7 +215,7 @@ class LabInfoResponse(BaseDBModel, extra="forbid"):
         ..., ge=0, description="Number of connections between nodes in the lab."
     )
     groups: list[LabGroup] = Field(...)
-    effective_permissions: EffectivePermissions = Field(...)
+    effective_permissions: Optional[EffectivePermissions] = Field(default=None)
     topology: SimplifiedLabTopology = Field(
         default=None, description="Lab topology data"
     )

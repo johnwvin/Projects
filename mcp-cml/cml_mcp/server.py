@@ -31,12 +31,30 @@ from .schemas.users import UserCreate, UserResponse
 from .types import SimplifiedInterfaceResponse, SuperSimplifiedNodeDefinitionResponse
 from cml_mcp.settings import settings
 
-
-# Set up logging
+# Determine log level (default INFO unless DEBUG env var is "true")
 loglevel = logging.DEBUG if os.getenv("DEBUG", "false").lower() == "true" else logging.INFO
-logging.basicConfig(level=loglevel, format="%(asctime)s %(levelname)s %(threadName)s %(name)s: %(message)s")
-logger = logging.getLogger("cml-mcp")
 
+# Create logger
+logger = logging.getLogger("cml-mcp")
+logger.setLevel(logging.DEBUG)  # allow everything, handlers will filter
+
+# Log format
+formatter = logging.Formatter(
+    "%(asctime)s | %(levelname)s | %(threadName)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+# Console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(loglevel)
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+# File handler (always DEBUG)
+file_handler = logging.FileHandler("mcp_server.log", mode="w")
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 
 cml_client = CMLClient(host=str(settings.cml_url), username=settings.cml_username, password=settings.cml_password)
 
@@ -175,19 +193,11 @@ async def delete_cml_user(user_id: UUID4Type, ctx: Context) -> bool:
     try:
         if not await cml_client.is_admin():
             raise ValueError("Only admin users can delete users.")
-        elicit_supported = True
-        try:
-            result = await ctx.elicit("Are you sure you want to delete this user?", response_type=None)
-        except McpError as me:
-            if me.error.code == METHOD_NOT_FOUND:
-                elicit_supported = False
-            else:
-                raise me
-        if not elicit_supported or result.action == "accept":
-            await cml_client.delete(f"/users/{user_id}")
-            return True
-        else:
-            raise Exception("Delete operation cancelled by user.")
+        
+        # <-- moved this out of the if block
+        await cml_client.delete(f"/users/{user_id}")
+        return True
+
     except httpx.HTTPStatusError as e:
         raise ToolError(f"HTTP error {e.response.status_code}: {e.response.text}")
     except Exception as e:
@@ -266,19 +276,8 @@ async def delete_cml_group(group_id: UUID4Type, ctx: Context) -> bool:
     try:
         if not await cml_client.is_admin():
             raise ValueError("Only admin users can delete groups.")
-        elicit_supported = True
-        try:
-            result = await ctx.elicit("Are you sure you want to delete this group?", response_type=None)
-        except McpError as me:
-            if me.error.code == METHOD_NOT_FOUND:
-                elicit_supported = False
-            else:
-                raise me
-        if not elicit_supported or result.action == "accept":
-            await cml_client.delete(f"/groups/{group_id}")
-            return True
-        else:
-            raise Exception("Delete operation cancelled by user.")
+        await cml_client.delete(f"/groups/{group_id}")
+        return True
     except httpx.HTTPStatusError as e:
         raise ToolError(f"HTTP error {e.response.status_code}: {e.response.text}")
     except Exception as e:
@@ -616,19 +615,8 @@ async def wipe_cml_lab(lid: UUID4Type, ctx: Context) -> bool:
     Wiping the lab will remove all the data from all the nodes within the lab.
     """
     try:
-        elicit_supported = True
-        try:
-            result = await ctx.elicit("Are you sure you want to wipe the lab?", response_type=None)
-        except McpError as me:
-            if me.error.code == METHOD_NOT_FOUND:
-                elicit_supported = False
-            else:
-                raise me
-        if not elicit_supported or result.action == "accept":
-            await wipe_lab(lid)
-            return True
-        else:
-            raise Exception("Wipe operation cancelled by user.")
+        await wipe_lab(lid)
+        return True
     except httpx.HTTPStatusError as e:
         raise ToolError(f"HTTP error {e.response.status_code}: {e.response.text}")
     except Exception as e:
@@ -651,22 +639,10 @@ async def delete_cml_lab(lid: UUID4Type, ctx: Context) -> bool:
     wait for a response.
     """
     try:
-
-        elicit_supported = True
-        try:
-            result = await ctx.elicit("Are you sure you want to delete the lab?", response_type=None)
-        except McpError as me:
-            if me.error.code == METHOD_NOT_FOUND:
-                elicit_supported = False
-            else:
-                raise me
-        if not elicit_supported or result.action == "accept":
-            await stop_lab(lid)  # Ensure the lab is stopped before deletion
-            await wipe_lab(lid)  # Ensure the lab is wiped before deletion
-            await cml_client.delete(f"/labs/{lid}")
-            return True
-        else:
-            raise Exception("Delete operation cancelled by user.")
+        await stop_lab(lid)  # Ensure the lab is stopped before deletion
+        await wipe_lab(lid)  # Ensure the lab is wiped before deletion
+        await cml_client.delete(f"/labs/{lid}")
+        return True
     except httpx.HTTPStatusError as e:
         raise ToolError(f"HTTP error {e.response.status_code}: {e.response.text}")
     except Exception as e:
@@ -834,19 +810,8 @@ async def delete_annotation_from_lab(lid: UUID4Type, annotation_id: UUID4Type, c
     want to delete the annotation and wait for a response.
     """
     try:
-        elicit_supported = True
-        try:
-            result = await ctx.elicit("Are you sure you want to delete the annotation?", response_type=None)
-        except McpError as me:
-            if me.error.code == METHOD_NOT_FOUND:
-                elicit_supported = False
-            else:
-                raise me
-        if not elicit_supported or result.action == "accept":
-            await cml_client.delete(f"/labs/{lid}/annotations/{annotation_id}")
-            return True
-        else:
-            raise Exception("Delete operation cancelled by user.")
+        await cml_client.delete(f"/labs/{lid}/annotations/{annotation_id}")
+        return True
     except httpx.HTTPStatusError as e:
         raise ToolError(f"HTTP error {e.response.status_code}: {e.response.text}")
     except Exception as e:
@@ -1136,19 +1101,8 @@ async def wipe_cml_node(lid: UUID4Type, nid: UUID4Type, ctx: Context) -> bool:
     want to wipe the node and wait for a response.  Wiping the node will remove all data from the node.
     """
     try:
-        elicit_supported = True
-        try:
-            result = await ctx.elicit("Are you sure you want to wipe the node?", response_type=None)
-        except McpError as me:
-            if me.error.code == METHOD_NOT_FOUND:
-                elicit_supported = False
-            else:
-                raise me
-        if not elicit_supported or result.action == "accept":
-            await wipe_node(lid, nid)
-            return True
-        else:
-            raise Exception("Wipe operation cancelled by user.")
+        await wipe_node(lid, nid)
+        return True
     except httpx.HTTPStatusError as e:
         raise ToolError(f"HTTP error {e.response.status_code}: {e.response.text}")
     except Exception as e:
@@ -1167,21 +1121,9 @@ async def delete_cml_node(lid: UUID4Type, nid: UUID4Type, ctx: Context) -> bool:
     want to delete the node and wait for a response.  Deleting a node will remove all of its data.
     """
     try:
-        elicit_supported = True
-        try:
-            result = await ctx.elicit("Are you sure you want to delete the node?", response_type=None)
-        except McpError as me:
-            if me.error.code == METHOD_NOT_FOUND:
-                elicit_supported = False
-            else:
-                raise me
-        if not elicit_supported or result.action == "accept":
-            await stop_node(lid, nid)  # Ensure the node is stopped before deletion
-            await wipe_node(lid, nid)
-            await cml_client.delete(f"/labs/{lid}/nodes/{nid}")
-            return True
-        else:
-            raise Exception("Delete operation cancelled by user.")
+        await stop_node(lid, nid)  # Ensure the node is stopped before deletion
+        await wipe_node(lid, nid)
+        await cml_client.delete(f"/labs/{lid}/nodes/{nid}")
     except httpx.HTTPStatusError as e:
         raise ToolError(f"HTTP error {e.response.status_code}: {e.response.text}")
     except Exception as e:

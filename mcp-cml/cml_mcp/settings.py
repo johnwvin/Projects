@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     cml_url: AnyHttpUrl = Field(..., validation_alias="VIRL_HOST")
     cml_username: str   = Field(..., validation_alias="VIRL_USERNAME")
     cml_password: str = Field(..., validation_alias="VIRL_PASSWORD")
-    cml_verify_cert: bool = Field(False, validation_alias="CML_VERIFY_CERT")
+    cml_verify_cert: bool = Field(True, validation_alias="CML_VERIFY_CERT")
 
 
 settings = Settings()
