@@ -22,7 +22,10 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
+import sys
 from cml_mcp.server import server_mcp
+
+sys.setrecursionlimit(10000)  
 
 def main():
     server_mcp.run(transport="http", host="127.0.0.1", port=8000)

@@ -5,6 +5,7 @@ venv/
 .venv/
 
 .env*
+.autoenv
 
 cloudflared.deb
 cloudflared.log
