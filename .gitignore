@@ -2,8 +2,8 @@ venv/
 .venv/
 **/venv/
 **/.venv/
-mcp-cml/cloudflared.deb
-mcp-cml/cloudflared.log
+**cloudflared.deb
+**cloudflared.log
 __pycache__/
 *__pycache__/
 **__pycache__/
